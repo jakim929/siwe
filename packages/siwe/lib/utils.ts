@@ -1,12 +1,11 @@
 import { randomStringForEntropy } from '@stablelib/random';
-import { Contract, providers, Signer } from 'ethers';
 
 import type { SiweMessage } from './client';
-import { hashMessage } from './ethersCompat';
+import { Address, getContract, PublicClient, hashMessage } from 'viem';
 
 const EIP1271_ABI = [
   'function isValidSignature(bytes32 _message, bytes _signature) public view returns (bytes4)',
-];
+] as const;
 const EIP1271_MAGICVALUE = '0x1626ba7e';
 const ISO8601 =
   /^(?<date>[0-9]{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01]))[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(.[0-9]+)?(([Zz])|([+|-]([01][0-9]|2[0-3]):[0-5][0-9]))$/;
@@ -14,22 +13,28 @@ const ISO8601 =
 /**
  * This method calls the EIP-1271 method for Smart Contract wallets
  * @param message The EIP-4361 parsed message
- * @param provider Web3 provider able to perform a contract check (Web3/EthersJS).
+ * @param publicClient PublicClient able to perform a contract check (viem).
  * @returns {Promise<boolean>} Checks for the smart contract (if it exists) if
  * the signature is valid for given address.
  */
 export const checkContractWalletSignature = async (
   message: SiweMessage,
   signature: string,
-  provider?: providers.Provider | Signer
+  publicClient?: PublicClient,
 ): Promise<boolean> => {
-  if (!provider) {
+  if (!publicClient) {
     return false;
   }
 
-  const walletContract = new Contract(message.address, EIP1271_ABI, provider);
+  const contract = getContract({
+    address: message.address as Address,
+    abi: EIP1271_ABI,
+    publicClient,
+  })
+
+
   const hashedMessage = hashMessage(message.prepareMessage());
-  const res = await walletContract.isValidSignature(hashedMessage, signature);
+  const res = await contract.read.isValidSignature([hashedMessage, signature]);
   return res === EIP1271_MAGICVALUE;
 };
 
