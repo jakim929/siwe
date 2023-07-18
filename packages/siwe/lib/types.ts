@@ -1,5 +1,5 @@
-import { providers } from 'ethers';
 import { SiweMessage } from './client';
+import { PublicClient } from 'viem';
 
 export interface VerifyParams {
   /** Signature of the message signed by the wallet */
@@ -23,8 +23,8 @@ export const VerifyParamsKeys: Array<keyof VerifyParams> = [
 ];
 
 export interface VerifyOpts {
-  /** ethers provider to be used for EIP-1271 validation */
-  provider?: providers.Provider;
+  /** viem public client to be used for EIP-1271 validation */
+  publicClient?: PublicClient;
 
   /** If the library should reject promises on errors, defaults to false */
   suppressExceptions?: boolean;
@@ -34,7 +34,7 @@ export interface VerifyOpts {
 }
 
 export const VerifyOptsKeys: Array<keyof VerifyOpts> = [
-  'provider',
+  'publicClient',
   'suppressExceptions',
   'verificationFallback',
 ];

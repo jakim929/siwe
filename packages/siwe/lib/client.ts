@@ -4,10 +4,11 @@ import {
   ParsedMessage,
   parseIntegerNumber,
 } from '@spruceid/siwe-parser';
-import { providers } from 'ethers';
 import * as uri from 'valid-url';
 
-import { getAddress, verifyMessage } from './ethersCompat';
+import { Hex, recoverMessageAddress, getAddress } from 'viem'
+
+
 import {
   SiweError,
   SiweErrorType,
@@ -23,6 +24,7 @@ import {
   checkInvalidKeys,
   isValidISO8601Date,
 } from './utils';
+import { PublicClient } from 'viem';
 
 export class SiweMessage {
   /**RFC 4501 dns authority that is requesting the signing. */
@@ -187,13 +189,13 @@ export class SiweMessage {
    * @deprecated
    * Verifies the integrity of the object by matching its signature.
    * @param signature Signature to match the address in the message.
-   * @param provider Ethers provider to be used for EIP-1271 validation
+   * @param publicClient Viem public client to be used for EIP-1271 validation
    */
-  async validate(signature: string, provider?: providers.Provider) {
+  async validate(signature: string, publicClient?: PublicClient ) {
     console.warn(
       'validate() has been deprecated, please update your code to use verify(). validate() may be removed in future versions.'
     );
-    return this.verify({ signature }, { provider, suppressExceptions: false })
+    return this.verify({ signature }, { publicClient, suppressExceptions: false })
       .then(({ data }) => data)
       .catch(({ error }) => {
         throw error;
@@ -318,7 +320,10 @@ export class SiweMessage {
       /** Recover address from signature */
       let addr;
       try {
-        addr = verifyMessage(EIP4361Message, signature);
+        addr = recoverMessageAddress({
+          message: EIP4361Message,
+          signature: signature as Hex
+        });
       } catch (e) {
         console.error(e);
       }
@@ -332,7 +337,7 @@ export class SiweMessage {
         const EIP1271Promise = checkContractWalletSignature(
           this,
           signature,
-          opts.provider
+          opts.publicClient
         )
           .then(isValid => {
             if (!isValid) {

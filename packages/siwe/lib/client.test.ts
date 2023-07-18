@@ -6,14 +6,15 @@ const verificationPositive = require('../../../test/verification_positive.json')
 const verificationNegative = require('../../../test/verification_negative.json');
 const EIP1271 = require('../../../test/eip1271.json');
 
-import {
-  providers,
-  // @ts-expect-error -- ethers v6 compatibility hack
-  InfuraProvider,
-  Wallet,
-} from 'ethers';
 import { SiweMessage } from './client';
 import { SiweErrorType } from './types';
+import { createPublicClient, http } from 'viem';
+import { generatePrivateKey, privateKeyToAccount} from 'viem/accounts'
+import { mainnet } from 'viem/chains';
+
+const getRandomPrivateKeyAccount = () => {
+  return privateKeyToAccount(generatePrivateKey());
+}
 
 describe(`Message Generation`, () => {
   test.concurrent.each(Object.entries(parsingPositive))(
@@ -124,13 +125,13 @@ describe(`Message verification with suppressExceptions`, () => {
 });
 
 describe(`Round Trip`, () => {
-  const wallet = Wallet.createRandom();
+  const wallet = getRandomPrivateKeyAccount();
   test.concurrent.each(Object.entries(parsingPositive))(
     'Generates a Successfully Verifying message: %s',
     async (_, test: any) => {
       const msg = new SiweMessage(test.fields);
       msg.address = wallet.address;
-      const signature = await wallet.signMessage(msg.toMessage());
+      const signature = await wallet.signMessage({ message: msg.toMessage() });
       await expect(
         msg.verify({ signature }).then(({ success }) => success)
       ).resolves.toBeTruthy();
@@ -139,13 +140,13 @@ describe(`Round Trip`, () => {
 });
 
 describe(`Round Trip`, () => {
-  const wallet = Wallet.createRandom();
+  const wallet = getRandomPrivateKeyAccount();
   test.concurrent.each(Object.entries(parsingPositive))(
     'Generates a Successfully Verifying message: %s',
     async (_, test: any) => {
       const msg = new SiweMessage(test.fields);
       msg.address = wallet.address;
-      const signature = await wallet.signMessage(msg.toMessage());
+      const signature = await wallet.signMessage({ message: msg.toMessage() });
       await expect(
         msg.verify({ signature }).then(({ success }) => success)
       ).resolves.toBeTruthy();
@@ -154,16 +155,13 @@ describe(`Round Trip`, () => {
 });
 
 describe(`EIP1271`, () => {
-  function getProviderCompat(networkId: number | string) {
-    return typeof providers?.InfuraProvider !== 'undefined'
-      ? new providers.InfuraProvider(networkId)
-      : new InfuraProvider(networkId);
-  }
-
   test.concurrent.each(Object.entries(EIP1271))(
     'Verifies message successfully: %s',
     async (_, test_fields: any) => {
-      const provider = getProviderCompat(1);
+      const publicClient = createPublicClient({ 
+        chain: mainnet,
+        transport: http()
+      })
       const msg = new SiweMessage(test_fields.message);
       await expect(
         msg
@@ -172,7 +170,7 @@ describe(`EIP1271`, () => {
               signature: test_fields.signature,
             },
             {
-              provider,
+              publicClient,
             }
           )
           .then(({ success }) => success)
@@ -205,7 +203,7 @@ describe(`Unit`, () => {
     }).toThrow());
 
   test('Should not throw if params are valid.', async () => {
-    const wallet = Wallet.createRandom();
+    const wallet = getRandomPrivateKeyAccount();
     const msg = new SiweMessage({
       address: wallet.address,
       domain: 'login.xyz',
@@ -217,13 +215,13 @@ describe(`Unit`, () => {
       chainId: 1,
       expirationTime: '2100-01-07T14:31:43.952Z',
     });
-    const signature = await wallet.signMessage(msg.toMessage());
+    const signature = await wallet.signMessage({ message: msg.toMessage() });
     const result = await (msg as any).verify({ signature });
     expect(result.success).toBeTruthy();
   });
 
   test('Should throw if params are invalid.', async () => {
-    const wallet = Wallet.createRandom();
+    const wallet = getRandomPrivateKeyAccount();
     const msg = new SiweMessage({
       address: wallet.address,
       domain: 'login.xyz',
@@ -235,7 +233,7 @@ describe(`Unit`, () => {
       chainId: 1,
       expirationTime: '2100-01-07T14:31:43.952Z',
     });
-    const signature = await wallet.signMessage(msg.toMessage());
+    const signature = await wallet.signMessage({ message: msg.toMessage() });
     try {
       await (msg as any).verify({
         signature,
@@ -250,7 +248,7 @@ describe(`Unit`, () => {
   });
 
   test('Should throw if opts are invalid.', async () => {
-    const wallet = Wallet.createRandom();
+    const wallet = getRandomPrivateKeyAccount();
     const msg = new SiweMessage({
       address: wallet.address,
       domain: 'login.xyz',
@@ -262,7 +260,7 @@ describe(`Unit`, () => {
       chainId: 1,
       expirationTime: '2100-01-07T14:31:43.952Z',
     });
-    const signature = await wallet.signMessage(msg.toMessage());
+    const signature = await wallet.signMessage({message: msg.toMessage() });
     try {
       await (msg as any).verify(
         { signature },
